@@ -1,0 +1,155 @@
+{
+  "name": "N3 Fleet Incident Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fleet-telemetry-event",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bdfca331-c90c-43f9-9628-3c6454b9a56e",
+      "name": "Webhook",
+      "webhookId": "60365f8a-65a8-431f-89ed-83e6ec6344ec"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  // Webhook payloads are nested in the 'body' object\n  const data = item.json.body || item.json; \n  \n  const fuelVarianceLiters = data.actual_fuel_liters - data.expected_fuel_liters;\n  const wastedFuelCostZAR = fuelVarianceLiters * 23.50;\n  const idleHours = data.idle_time_mins / 60;\n  const idlePenaltyZAR = idleHours * 350.00;\n  const totalFinancialLeakage = wastedFuelCostZAR + idlePenaltyZAR;\n  \n  // Calculate Boolean threshold\n  const isHighRisk = (data.variance_percent > 15.0) || (data.idle_time_mins > 120);\n\n  return {\n    json: {\n      ...data,\n      fuel_variance_liters: fuelVarianceLiters.toFixed(2),\n      wasted_fuel_zar: wastedFuelCostZAR.toFixed(2),\n      idle_hours: idleHours.toFixed(2),\n      idle_penalty_zar: idlePenaltyZAR.toFixed(2),\n      total_leakage_zar: totalFinancialLeakage.toFixed(2),\n      requires_escalation: isHighRisk\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "b8257dae-caa0-4dae-9c75-b0ce037b15aa",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "19210614-07f7-444d-bfd0-188da287ed19",
+              "leftValue": "={{ $json.requires_escalation }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "aafb024d-47c2-4ea9-8efc-2cacf79410c2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "sendTo": "lindomyeni2004@gmail.com",
+        "subject": "=🚨 CRITICAL FLEET VARIANCE ALERT: Asset {{ $json.truck_id }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; color: #333333; max-width: 600px; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px;\">\n\n    <h2 style=\"color: #d93025; margin-top: 0;\">🚨 OPERATIONAL ESCALATION</h2>\n    <h4 style=\"color: #5f6368; margin-bottom: 20px;\">N3 FREIGHT CORRIDOR</h4>\n\n    <p style=\"font-size: 14px;\">\n        <strong>Truck ID:</strong> {{ $json.truck_id }}<br>\n        <strong>Driver:</strong> {{ $json.driver_name }}<br>\n        <strong>Route Leg:</strong> {{ $json.route_leg }}\n    </p>\n\n    <div style=\"background-color: #f8f9fa; padding: 15px; border-left: 4px solid #f4b400; margin: 20px 0;\">\n        <h3 style=\"margin-top: 0; font-size: 14px;\">FINANCIAL IMPACT METRICS</h3>\n        <ul style=\"font-size: 14px; line-height: 1.6; padding-left: 20px; margin-bottom: 0;\">\n            <li><strong>Fuel Variance:</strong> +{{ $json.variance_percent }}% ({{ $json.fuel_variance_liters }} L)</li>\n            <li><strong>Wasted Fuel Cost:</strong> R{{ $json.wasted_fuel_zar }}</li>\n            <li><strong>Non-Productive Idle:</strong> {{ $json.idle_hours }} hrs (R{{ $json.idle_penalty_zar }})</li>\n            <li style=\"color: #d93025;\"><strong>Total Margin Loss: R{{ $json.total_leakage_zar }}</strong></li>\n        </ul>\n    </div>\n\n    <p style=\"font-size: 12px; color: #5f6368; font-style: italic;\">\n        Action Required: Route supervisor review logged in dispatch console.\n    </p>\n\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        656,
+        -128
+      ],
+      "id": "6d448464-03fc-41f5-a98c-27a18120d9eb",
+      "name": "Send a message",
+      "webhookId": "00062397-776b-4eed-ab9f-8bfb37d58f6a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "c8RwK2jlshD3yphc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## How To POST for Webhook\n**Paste the following on Windows PowerShell** \n\nInvoke-RestMethod -Uri \"http://localhost:5678/webhook-test/fleet-telemetry-event\" -Method Post -ContentType \"application/json\" -Body '{\"trip_id\":\"TRP-98421\",\"truck_id\":\"TRK-012\",\"driver_name\":\"Sipho Khumalo\",\"route_leg\":\"Cato Ridge to Pietermaritzburg\",\"expected_fuel_liters\":140.0,\"actual_fuel_liters\":190.0,\"variance_percent\":35.7,\"idle_time_mins\":240,\"requires_escalation\":true}'",
+        "height": 272,
+        "width": 352
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2176,
+        416
+      ],
+      "typeVersion": 1,
+      "id": "17ba9666-a197-4a63-9295-684b971b4557",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "20c4567e-c9e7-4f14-9285-81677304b5b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea74e93039e547d0482f7d512fab3c0c2808318bf9c748fbfd9fbd1a1a7ca322"
+  },
+  "nodeGroups": [],
+  "id": "GZ6VhPlaqd8wQ7fe",
+  "tags": []
+}
